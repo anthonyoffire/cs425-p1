@@ -2,6 +2,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+int send_mail(Msg_Info *info){
+  return 0;
+}
 char *get_greeting(const char *restrict name)
 {
   if (name == NULL)

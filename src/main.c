@@ -1,6 +1,7 @@
 #include "lab.h"
 #include <stdio.h>
-#include <stdlib.h>
+#include <string.h>
+#include "args.h"
 
 #ifdef TEST
 #define main main_exclude
@@ -8,14 +9,20 @@
 
 
 
-int main(void)
-{
-    char *greeting = get_greeting("World");
-    if (greeting) {
-        printf("%s\n", greeting);
-        free(greeting); // Free the allocated memory for the greeting
-    } else {
-        printf("Failed to create greeting.\n");
+int main(int argc, char **argv){
+    // Allocate info struct
+    Msg_Info info;
+    memset(&info, 0, sizeof(Msg_Info));
+
+    int arg_stat = parse_args(argc, argv, &info);
+    // Check for arg error
+    if (arg_stat !=0 || argc == 1){
+        return arg_stat;
     }
+    printf("To: %s, From: %s, Server: %s", info.to, info.from, info.server);
+    int mail_stat = send_mail(&info);
+    // Check for mail error
+    if (mail_stat != 0)
+        return mail_stat;
     return 0;
 }

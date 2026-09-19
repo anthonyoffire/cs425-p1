@@ -10,5 +10,22 @@
  */
 char* get_greeting(const char* restrict name);
 
+/**
+ * 
+ */
+typedef struct {
+    char *from;
+    char *to;
+    char *subject;
+    char *body;
+    char *port;
+    char *host;
+    char *server;
+} Msg_Info;
+
+/**
+ * 
+ */
+int send_mail(Msg_Info*);
 
 #endif // LAB_H
