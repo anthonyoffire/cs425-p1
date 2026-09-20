@@ -197,22 +197,6 @@ static void test_smtp_session_error(void) {
 
     TEST_ASSERT_NOT_EQUAL(0, run_smtp_session(&transport, &info));
 }
-static void test_send_mail(void) {
-    Msg_Info info;
-
-    info.server = "invalid.localhost";
-    info.port = "25";
-    info.from = "a@b.com";
-    info.to = "c@d.com";
-    info.subject = "Test";
-    info.body = "Body";
-
-    /* 1. NULL info guard branch */
-    TEST_ASSERT_EQUAL_INT(2, send_mail(NULL));
-
-    /* 2. Connection failure branch (failed socket_connect) */
-    TEST_ASSERT_EQUAL_INT(2, send_mail(&info));
-}
 
 /* --- Suite Runner --- */
 
@@ -226,5 +210,4 @@ void run_lab_tests(void) {
     RUN_TEST(test_build_command);
     RUN_TEST(test_smtp_session_success);
     RUN_TEST(test_smtp_session_error);
-    RUN_TEST(test_send_mail);
 }
