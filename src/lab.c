@@ -10,7 +10,17 @@
 #include <arpa/inet.h>
 #include <stddef.h>
 
-
+/**
+ * Calculates the length of a string excluding any trailing \r or \n characters.
+ */
+static size_t get_trimmed_len(const char *str) {
+    if (!str) return 0;
+    size_t len = strlen(str);
+    while (len > 0 && (str[len - 1] == '\r' || str[len - 1] == '\n')) {
+        len--;
+    }
+    return len;
+}
 int parse_reply_code(const char *line) {
     if (!line || strlen(line) < 3) 
         return -1;
@@ -51,21 +61,24 @@ int build_body(const Msg_Info *info, char *output_buf, size_t max_len) {
     if (!info || !output_buf || max_len == 0) 
         return 0;
 
-    size_t body_len = strlen(info->body);
-    while (body_len > 0 && (info->body[body_len - 1] == '\r' || info->body[body_len - 1] == '\n')) {
-        body_len--;
-    }
+    // Get lengths without trailing \r's or \n's
+    size_t body_len = get_trimmed_len(info->body);
+    size_t subject_len = info->subject ? get_trimmed_len(info->subject) : 0;
+    size_t from_len = get_trimmed_len(info->from);
+    size_t to_len   = get_trimmed_len(info->to);
+
     int bytes_written = snprintf(
         output_buf, max_len,
-        "%s%s"
-        "From: %s\r\n"
-        "To: %s\r\n\r\n"
-        "%.*s\r\n" // Limit the body length to exclude any trailing \r or \n
+        "%s%.*s%s"
+        "From: %.*s\r\n"
+        "To: %.*s\r\n\r\n"
+        "%.*s\r\n" 
         ".\r\n",
-        info->subject ? "Subject: " : "",
-        info->subject ? info->subject : "",
-        info->from,
-        info->to,
+        subject_len > 0 ? "Subject: " : "",
+        (int)subject_len, info->subject ? info->subject : "",
+        subject_len > 0 ? "\r\n" : "", // Add \r\n if subject is present
+        (int)from_len, info->from,
+        (int)to_len, info->to,
         (int)body_len, info->body
     );
     if (bytes_written <= 0 || (size_t)bytes_written >= max_len){
