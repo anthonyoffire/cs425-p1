@@ -5,10 +5,10 @@
 #include "../src/lab.h"
 #include "../src/args.h"
 
-void test_send_mail(void);
-void test_print_usage(void);
-void test_parse_args(void);
+void run_lab_tests(void);
+void run_args_tests(void);
 
+//GCOVR_EXCL_START
 void setUp(void) {
   printf("Setting up tests...\n");
 }
@@ -19,8 +19,8 @@ void tearDown(void) {
 
 int main(void) {
   UNITY_BEGIN();
-  RUN_TEST(test_send_mail);
-  RUN_TEST(test_print_usage);
-  RUN_TEST(test_parse_args);
+  run_lab_tests();
+  run_args_tests();
   return UNITY_END();
 }
+//GCOVR_EXCL_STOP

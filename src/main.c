@@ -22,8 +22,5 @@ int main(int argc, char **argv){
     printf("To: %s, From: %s, Server: %s\n", info.to, info.from, info.server);
     printf("Subj: %s, Body: %s, Port: %s, Host: %s\n", info.subject, info.body, info.port, info.host);
     int mail_stat = send_mail(&info);
-    // Check for mail error
-    if (mail_stat != 0)
-        return mail_stat;
-    return 0;
+    return mail_stat;
 }

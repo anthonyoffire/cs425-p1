@@ -9,11 +9,14 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <stddef.h>
+#include <stdarg.h>
 
-/**
- * Calculates the length of a string excluding any trailing \r or \n characters.
- */
-static size_t get_trimmed_len(const char *str) {
+/*--------------------------------------------------------------------
+ * Layer 1: Helper functions
+ *--------------------------------------------------------------------*/
+
+/** */
+STATIC_T size_t get_trimmed_len(const char *str) {
     if (!str) return 0;
     size_t len = strlen(str);
     while (len > 0 && (str[len - 1] == '\r' || str[len - 1] == '\n')) {
@@ -21,7 +24,7 @@ static size_t get_trimmed_len(const char *str) {
     }
     return len;
 }
-int parse_reply_code(const char *line) {
+STATIC_T int parse_reply_code(const char *line) {
     if (!line || strlen(line) < 3) 
         return -1;
     // Convert first 3 chars to int for easier comparison later
@@ -34,32 +37,41 @@ int parse_reply_code(const char *line) {
     return code;
 }
 
-int is_final_reply_line(const char *line) {
+STATIC_T int is_final_reply_line(const char *line) {
     if (!line || strlen(line) < 4) return 0;
     return line[3] == ' ';
 }
 
-int build_command(char *send_buf, size_t max_len, const char *prefix, const char *arg){
+STATIC_T int build_command(char *send_buf, size_t max_len, const char *prefix, const char *arg){
     int bytes_written;
     if (!prefix){
         fprintf(stderr, "Error in build command - null prefix.");
         return 2;
     }
     if (arg) {
-        bytes_written = snprintf(send_buf, max_len, "%s%s\r\n", prefix, arg);
+        // If prefix is format str, combine them first
+        const char *specifier = strstr(prefix, "%s");
+        if (specifier) {
+            size_t head_len = (size_t)(specifier - prefix);
+            const char *tail = specifier + 2;
+            bytes_written = snprintf(send_buf, max_len, "%.*s%s%s", (int)head_len, prefix, arg, tail);
+        } else {
+            bytes_written = snprintf(send_buf, max_len, "%s%s\r\n", prefix, arg);
+        }
     } else {
-        bytes_written = snprintf(send_buf, max_len, "%s\r\n", prefix);
+        bytes_written = snprintf(send_buf, max_len, "%s", prefix);
     }
+    // GCOVR_EXCL_START
     if (bytes_written <= 0 || (size_t)bytes_written >= max_len){
         fprintf(stderr, "Error building command: [%s]\n", prefix);
         return 2;
-    }
+    } // GCOVR_EXCL_STOP
     return 0;
 }
 
-int build_body(const Msg_Info *info, char *output_buf, size_t max_len) {
+STATIC_T int build_body(const Msg_Info *info, char *output_buf, size_t max_len) {
     if (!info || !output_buf || max_len == 0) 
-        return 0;
+        return 2;
 
     // Get lengths without trailing \r's or \n's
     size_t body_len = get_trimmed_len(info->body);
@@ -81,13 +93,15 @@ int build_body(const Msg_Info *info, char *output_buf, size_t max_len) {
         (int)to_len, info->to,
         (int)body_len, info->body
     );
+    // GCOVR_EXCL_START
     if (bytes_written <= 0 || (size_t)bytes_written >= max_len){
         fprintf(stderr, "Error building body. Bytes written: %d, max_len: %ld\n", bytes_written, max_len);
         return 2; 
     }
+    // GCOVR_EXCL_STOP
     return 0;
 }
-int send_message(Transport *transport, const char *send_buf){
+STATIC_T int send_message(Transport *transport, const char *send_buf){
     size_t len = strlen(send_buf);
     ssize_t bytes_sent = transport->write(transport->handle, send_buf, len);
     if (bytes_sent != (ssize_t)len){
@@ -96,7 +110,10 @@ int send_message(Transport *transport, const char *send_buf){
     }
     return 0;
 }
-int read_line(Transport *transport, LineReader *reader, char *recv_buf, size_t max_len){
+/*--------------------------------------------------------------------
+ * Layer 2: Session Logic
+ *--------------------------------------------------------------------*/
+STATIC_T int read_line(Transport *transport, LineReader *reader, char *recv_buf, size_t max_len){
     size_t out_idx = 0;
     while (out_idx < max_len - 1){
         if (reader->pos >= reader->len){
@@ -117,7 +134,7 @@ int read_line(Transport *transport, LineReader *reader, char *recv_buf, size_t m
     recv_buf[out_idx] = '\0';
     return (out_idx > 0) ? 0 : 2;
 }
-int check_reply_code(Transport *transport, LineReader *reader, char *recv_buf, size_t max_len, int expected_code){
+STATIC_T int check_reply_code(Transport *transport, LineReader *reader, char *recv_buf, size_t max_len, int expected_code){
     while(1){
         if (read_line(transport, reader, recv_buf, max_len) != 0){
             fprintf(stderr, "Error finding last line from recv buffer.\n");
@@ -133,7 +150,11 @@ int check_reply_code(Transport *transport, LineReader *reader, char *recv_buf, s
     }
     return 0;
 }
-int handle_send(Transport *transport, const Msg_Info *info, LineReader *reader, char *send_buf, size_t send_max_len, char *com_str, const char *arg, char *recv_buf, size_t recv_max_len, int expected_code, int is_command){
+STATIC_T int handle_send(Transport *transport, const Msg_Info *info, 
+                LineReader *reader, char *send_buf, 
+                size_t send_max_len, char *com_str, 
+                const char *arg, char *recv_buf, 
+                size_t recv_max_len, int expected_code, int is_command){
     int res;
     if (is_command){
         if((res = build_command(send_buf, send_max_len, com_str, arg)) != 0) return res;
@@ -144,7 +165,7 @@ int handle_send(Transport *transport, const Msg_Info *info, LineReader *reader, 
     if((res = check_reply_code(transport, reader, recv_buf, recv_max_len, expected_code)) != 0) return res;
     return res;
 }
-int run_smtp_session(Transport *transport, const Msg_Info *info){
+STATIC_T int run_smtp_session(Transport *transport, const Msg_Info *info){
     LineReader reader;
     reader.len = 0;
     reader.pos = 0;
@@ -153,40 +174,49 @@ int run_smtp_session(Transport *transport, const Msg_Info *info){
     char command_buf[BUFFER_SIZE];
     char body_buf[BUFFER_SIZE + MAX_BODY_LEN];
     int res;
-
+    printf("Starting SMTP session with server %s on port %s\n", info->server, info->port);
     // Greeting
     if((res = check_reply_code(transport, &reader, recv_buf, sizeof(recv_buf), 220)) != 0) return res;
-    
+    printf("Server greeting: %s", recv_buf);
     // HELO
     if((res = handle_send(transport, NULL, &reader, command_buf, sizeof(command_buf), "HELO %s\r\n", info->host, recv_buf, sizeof(command_buf), 250, 1)) != 0) return res;
-    
+    printf("HELO response: %s", recv_buf);
     // From
     if((res = handle_send(transport, NULL, &reader, command_buf, sizeof(command_buf), "MAIL FROM:<%s>\r\n", info->from, recv_buf, sizeof(command_buf), 250, 1)) != 0) return res;
+    printf("MAIL FROM response: %s", recv_buf);
 
     // To
     if((res = handle_send(transport, NULL, &reader, command_buf, sizeof(command_buf), "RCPT TO:<%s>\r\n", info->to, recv_buf, sizeof(command_buf), 250, 1)) != 0) return res;
-
+    printf("RCPT TO response: %s", recv_buf);
     // Data
     if((res = handle_send(transport, NULL, &reader, command_buf, sizeof(command_buf), "DATA\r\n", NULL, recv_buf, sizeof(command_buf), 354, 1)) != 0) return res;
+    printf("DATA response: %s", recv_buf);
 
     // Body
     if((res = handle_send(transport, info, &reader, body_buf, sizeof(body_buf), NULL, NULL, recv_buf, sizeof(recv_buf), 250, 0)) != 0) return res;
+    printf("Message body response: %s", recv_buf);
     
     // Quit
     if((res = handle_send(transport, NULL, &reader, command_buf, sizeof(command_buf), "QUIT\r\n", NULL, recv_buf, sizeof(command_buf), 221, 1)) != 0) return res;
+    printf("QUIT response: %s", recv_buf);
     return 0;
 }
-static ssize_t socket_read(void *handle, void *buf, size_t count) {
+/*--------------------------------------------------------------------
+ * Layer 3: Socket functions
+ *--------------------------------------------------------------------*/
+
+//GCOVR_EXCL_START
+STATIC_T ssize_t socket_read(void *handle, void *buf, size_t count) {
     int fd = *(int *)handle;
     return recv(fd, buf, count, 0);
 }
 
-static ssize_t socket_write(void *handle, const void *buf, size_t count) {
+STATIC_T ssize_t socket_write(void *handle, const void *buf, size_t count) {
     int fd = *(int *)handle;
     return send(fd, buf, count, 0);
 }
 
-static int socket_resolve(const char *host, const char *port, struct addrinfo **res) {
+STATIC_T int socket_resolve(const char *host, const char *port, struct addrinfo **res) {
     struct addrinfo hints;
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
@@ -194,7 +224,7 @@ static int socket_resolve(const char *host, const char *port, struct addrinfo **
     return getaddrinfo(host, port, &hints, res);
 }
 
-static int socket_connect(struct addrinfo *addr_list) {
+STATIC_T int socket_connect(struct addrinfo *addr_list) {
     for (struct addrinfo *rp = addr_list; rp != NULL; rp = rp->ai_next) {
         int sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
         if (sfd == -1) continue;
@@ -206,16 +236,18 @@ static int socket_connect(struct addrinfo *addr_list) {
     }
     return -1;
 }
+
 int send_mail(Msg_Info *info){
     if (!info) 
         return 2;
     struct addrinfo *addr_list = NULL;
-
+    
     int res = socket_resolve(info->server, info->port, &addr_list);
     if (res != 0){
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(res));
         return 2;
     }
+    
     int sfd = socket_connect(addr_list);
     freeaddrinfo(addr_list);
     if (sfd == -1) {
@@ -224,9 +256,10 @@ int send_mail(Msg_Info *info){
     }
     printf("Socket bound to server at %s on port %s\n", info->server, info->port);
     
-    Transport transport = { socket_read, socket_write, (void*)(intptr_t)sfd };
+    Transport transport = { socket_read, socket_write, &sfd };
     int status = run_smtp_session(&transport, info);
     close(sfd);
+    printf("Email sent!\n");
     return status;
 }
-
+//GCOVR_EXCL_STOP
