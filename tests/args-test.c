@@ -18,10 +18,16 @@ static void test_read_body(void) {
     TEST_ASSERT_EQUAL_STRING("Hello World\n", res);
     fclose(f_valid);
 
-    f_empty = fmemopen("", 0, "r");
+    f_empty = fmemopen("", 1, "r");
     res = read_body(f_empty);
     TEST_ASSERT_NOT_NULL(res);
     TEST_ASSERT_EQUAL_STRING("", res);
+    
+    f_empty = tmpfile();
+    res = read_body(f_empty);
+    TEST_ASSERT_NOT_NULL(res);
+    TEST_ASSERT_EQUAL_STRING("", res);
+
     fclose(f_empty);
 }
 static void test_parse_args(void) {
