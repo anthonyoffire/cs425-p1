@@ -1,16 +1,8 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include "harness/unity.h"
 #include "../src/lab.h"
-
-
-void setUp(void) {
-  printf("Setting up tests...\n");
-}
-
-void tearDown(void) {
-  printf("Tearing down tests...\n");
-}
 
 void test_get_greeting(void) {
   char *greeting = get_greeting("Alice");
@@ -26,9 +18,10 @@ void test_get_greeting(void) {
   TEST_ASSERT_EQUAL_STRING("Hello, !", greeting);
   free(greeting);
 }
-
-int main(void) {
-  UNITY_BEGIN();
-  RUN_TEST(test_get_greeting);
-  return UNITY_END();
+void test_send_mail(void){
+  Msg_Info info;
+  memset(&info, 0, sizeof(Msg_Info));
+  int stat = send_mail(&info);
+  TEST_ASSERT_EQUAL_INT16(0, stat);
 }
+

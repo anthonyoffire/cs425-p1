@@ -8,20 +8,24 @@
 char body_buf[MAX_BODY_LEN];
 
 int print_usage(void){
-    return printf("Usage: myapp -f <from> -t <to> [-s subject] [-b body] [-p port] [-H helo-host] <server>\n");
+    int printed = printf("Usage: myapp -f <from> -t <to> [-s subject] [-b body] [-p port] [-H helo-host] <server>\n");
+    if (printed > 0)
+        return 0;
+    return -1;
 }
 
-static char *read_body(void){
-    if (fgets(body_buf, sizeof(body_buf), stdin) == NULL){
-        if(ferror(stdin)){
+
+static char *read_body(FILE *source){
+    if (fgets(body_buf, sizeof(body_buf), source) == NULL){
+        if(ferror(stdin)){// GCOVR_EXCL_START
             fprintf(stderr, "Error reading message body from stdin.");
             return NULL;
-        }
+        }// GCOVR_EXCL_STOP
         // Empty stdin, but no error
         body_buf[0]='\0';
     }
     return body_buf;
-}
+} 
 
 int parse_args(int argc, char *argv[], Msg_Info *info){
     if (!info)
@@ -59,10 +63,15 @@ int parse_args(int argc, char *argv[], Msg_Info *info){
         print_usage();
         return 1;
     }
-    
-
+    // Defaults
+    if (!info->port)
+        info->port = "25";
+    if (!info->subject)
+        info->subject = "";
+    if (!info->host)
+        info->host = "localhost";
     if (!info->body){
-        info->body = read_body();
+        info->body = read_body(stdin);
         if (!info->body){
             fprintf(stderr, "Error reading message body.\n");
             return 1;
