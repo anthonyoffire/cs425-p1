@@ -94,15 +94,15 @@ static void test_build_body(void) {
         .subject = "Hi\r\n",
         .body = "Body\n"
     };
-    Msg_Info info_nosub = {
+    Msg_Info info_null_body = {
         .from = "a@b.com",
         .to = "c@d.com",
-        .subject = NULL,
-        .body = "Body"
+        .subject = "Hi",
+        .body = NULL // Triggers dot_stuff_copy failure
     };
-
     TEST_ASSERT_EQUAL_INT(2, build_body(NULL, buf, sizeof(buf)));
     TEST_ASSERT_EQUAL_INT(0, build_body(&info_sub, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_INT(2, build_body(&info_null_body, buf, sizeof(buf)));
 }
 static void test_send_message(void) {
     MockScriptContext ctx = { NULL, 0 };
@@ -111,6 +111,21 @@ static void test_send_message(void) {
 
     TEST_ASSERT_EQUAL_INT(0, send_message(&transport_ok, "HELO\r\n"));
     TEST_ASSERT_EQUAL_INT(2, send_message(&transport_fail, "HELO\r\n"));
+}
+void test_dot_stuff_copy(void) {
+    char dest[32];
+    size_t out_len = 0;
+    int status;
+
+    status = dot_stuff_copy("hello", 5, dest, sizeof(dest), &out_len);
+    TEST_ASSERT_EQUAL_INT(0, status);
+    TEST_ASSERT_EQUAL_STRING("hello", dest);
+
+    status = dot_stuff_copy(".hello", 6, dest, sizeof(dest), &out_len);
+    TEST_ASSERT_EQUAL_STRING("..hello", dest);
+
+    status = dot_stuff_copy("line1\n.line2", 12, dest, sizeof(dest), &out_len);
+    TEST_ASSERT_EQUAL_STRING("line1\n..line2", dest);
 }
 static void test_read_line(void) {
     char recv_buf[128];
@@ -205,6 +220,7 @@ void run_lab_tests(void) {
     RUN_TEST(test_parse_reply_code);
     RUN_TEST(test_build_body);
     RUN_TEST(test_send_message);
+    RUN_TEST(test_dot_stuff_copy);
     RUN_TEST(test_read_line);
     RUN_TEST(test_check_reply_code);
     RUN_TEST(test_build_command);

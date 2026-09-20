@@ -69,12 +69,47 @@ STATIC_T int build_command(char *send_buf, size_t max_len, const char *prefix, c
     return 0;
 }
 
+STATIC_T int dot_stuff_copy(const char *src, size_t src_len, char *dest, size_t dest_max, size_t *out_len) {
+    size_t i = 0, j = 0;
+    int at_line_start = 1; // Are we at a line start
+
+    if (!src || !dest || dest_max == 0) return 2;
+
+    while (i < src_len && j < dest_max - 1) {
+        // If at start of line and character is '.' add an extra '.'
+        if (at_line_start && src[i] == '.') {
+            if (j >= dest_max - 1) return 2; 
+            dest[j++] = '.';
+        }
+        // Copy char
+        dest[j++] = src[i];
+
+        // Update line start
+        if (src[i] == '\n') {
+            at_line_start = 1;
+        } else if (src[i] != '\r') {
+            at_line_start = 0;
+        }
+        i++;
+    }
+    dest[j] = '\0';
+    if (out_len) *out_len = j;
+    return 0;
+}
+
 STATIC_T int build_body(const Msg_Info *info, char *output_buf, size_t max_len) {
+    char stuffed_body[MAX_BODY_LEN * 2]; /* Buffer for dot-stuffed output */
+    size_t stuffed_len = 0;
+
     if (!info || !output_buf || max_len == 0) 
         return 2;
 
     // Get lengths without trailing \r's or \n's
     size_t body_len = get_trimmed_len(info->body);
+    if (dot_stuff_copy(info->body, body_len, stuffed_body, sizeof(stuffed_body), &stuffed_len) != 0) {
+        fprintf(stderr, "Error dot-stuffing body.\n");
+        return 2;
+    }
     size_t subject_len = info->subject ? get_trimmed_len(info->subject) : 0;
     size_t from_len = get_trimmed_len(info->from);
     size_t to_len   = get_trimmed_len(info->to);
@@ -91,7 +126,7 @@ STATIC_T int build_body(const Msg_Info *info, char *output_buf, size_t max_len) 
         subject_len > 0 ? "\r\n" : "", // Add \r\n if subject is present
         (int)from_len, info->from,
         (int)to_len, info->to,
-        (int)body_len, info->body
+        (int)stuffed_len, stuffed_body
     );
     // GCOVR_EXCL_START
     if (bytes_written <= 0 || (size_t)bytes_written >= max_len){
@@ -110,6 +145,7 @@ STATIC_T int send_message(Transport *transport, const char *send_buf){
     }
     return 0;
 }
+
 /*--------------------------------------------------------------------
  * Layer 2: Session Logic
  *--------------------------------------------------------------------*/

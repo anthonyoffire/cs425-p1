@@ -117,6 +117,18 @@ STATIC_T int build_body(const Msg_Info *info, char *output_buf, size_t max_len);
  *         - 2: Failure, an error occurred while sending the message.
  */
 STATIC_T int send_message(Transport *transport, const char *send_buf);
+/** * @brief Performs dot-stuffing on a string.
+ *
+ * @param src The source string.
+ * @param src_len The length of the source string.
+ * @param dest The destination buffer.
+ * @param dest_max The maximum length of the destination buffer.
+ * @param out_len A pointer to store the length of the resulting string.
+ * @return An integer indicating the result of the operation:
+ *         - 0: Success, the dot-stuffing was performed successfully.
+ *         - 2: Failure, an error occurred while performing dot-stuffing.
+ */
+STATIC_T int dot_stuff_copy(const char *src, size_t src_len, char *dest, size_t dest_max, size_t *out_len);
 /** * @brief Reads a line from the transport layer.
  *
  * @param transport A pointer to a Transport structure containing read/write functions and socket handle.
